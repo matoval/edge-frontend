@@ -2,6 +2,7 @@ import React, { useEffect, useContext } from 'react';
 import { Flex, FlexItem } from '@patternfly/react-core';
 import AvailableImagesTile from './AvailableImagesTile';
 import DeviceSummaryTile from './DeviceSummaryTile';
+import LastCanariesTile from './LastCanariesTile';
 import { notificationsReducer } from '@redhat-cloud-services/frontend-components-notifications/redux';
 import { imagesReducer, deviceSummaryReducer } from '../store/reducers';
 import { useDispatch } from 'react-redux';
@@ -29,6 +30,9 @@ export const Tiles = ({ onNewImageClick }) => {
       </FlexItem>
       <FlexItem>
         <DeviceSummaryTile />
+      </FlexItem>
+      <FlexItem>
+        <LastCanariesTile />
       </FlexItem>
     </Flex>
   );
