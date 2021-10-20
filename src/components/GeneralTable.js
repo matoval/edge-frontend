@@ -1,4 +1,10 @@
-import React, { Fragment, useEffect, useState } from 'react';
+import React, {
+  Fragment,
+  useEffect,
+  useState,
+  useReducer,
+  useMemo,
+} from 'react';
 import {
   Table,
   TableHeader,
@@ -28,6 +34,38 @@ import {
   transformSort,
 } from '../Routes/ImageManager/constants';
 import PropTypes from 'prop-types';
+import tableFilterReducer from '../utils/tableFilter';
+
+const buildFilterConfig = (
+  defaultFilters,
+  activeFilters,
+  dispatchActiveFilters
+) => ({
+  items: Object.values(defaultFilters).map((filter) => {
+    const config = {
+      label: filter.label,
+      type: filter.type,
+      filterValues: {
+        key: `${filter.key}-filter`,
+        onChange: (_event, value) => {
+          dispatchActiveFilters({
+            type: 'UPDATE_FILTER',
+            property: filter.key,
+            value,
+          });
+        },
+        value: activeFilters?.[filter.key]?.value || '',
+      },
+    };
+    if (filter.type === 'text') {
+      config.placeholder = `Filter by ${filter.key}`;
+    }
+    if (filter.type === 'checkbox') {
+      config.filterValues.items = filter.items;
+    }
+    return config;
+  }),
+});
 
 const GeneralTable = ({
   tableData,
@@ -38,20 +76,39 @@ const GeneralTable = ({
   emptyStateAction,
   defaultSort,
   loadTableData,
-  filters,
-  filterDep,
-  clearFilters,
   actionResolver,
   areActionsDisabled,
-  filterConfig,
-  activeFilters,
-  dispatchActiveFilters,
   defaultFilters,
   perPage,
 }) => {
   const [sortBy, setSortBy] = useState(defaultSort);
   const [pagination, setPagination] = useState({ page: 1, perPage });
   const dispatch = useDispatch();
+  const { count, data, isLoading, hasError } = tableData;
+
+  const [activeFilters, dispatchActiveFilters] = useReducer(
+    tableFilterReducer,
+    defaultFilters
+  );
+
+  const filterConfig = buildFilterConfig(
+    defaultFilters,
+    activeFilters,
+    dispatchActiveFilters
+  );
+
+  const filterDep = useMemo(
+    () => Object.values(activeFilters),
+    [activeFilters]
+  );
+
+  const filters = isEmptyFilters(activeFilters)
+    ? constructActiveFilters(activeFilters)
+    : [];
+
+  const hasFilters = Object.keys(filters).some((filterKey) => filterKey);
+
+  const toShowSort = isLoading || hasError || (!count?.length === 0 && hasFilters); 
 
   const columns = columnNames.map((columnName) => ({
     title: columnName.title,
@@ -59,18 +116,25 @@ const GeneralTable = ({
     transforms: toShowSort ? [] : columnName.sort ? [sortable] : [],
   }));
 
-  const { count, data, isLoading, hasError } = tableData;
-
-  const toShowSort = isLoading || hasError || (!count?.length && hasFilters);
-  useEffect(() => {
-    loadTableData(dispatch, {
-      ...transformFilters(filters),
-      ...transformPaginationParams(pagination),
-      ...transformSort({
-        direction: sortBy.direction,
-        name: columns[sortBy.index].type,
-      }),
+  const clearFilters = () => {
+    dispatchActiveFilters({
+      type: 'DELETE_FILTER',
+      payload: defaultFilters,
     });
+  };
+
+  useEffect(() => {
+    const finishInput = setTimeout(() => {
+      loadTableData(dispatch, {
+        ...transformFilters(filters),
+        ...transformPaginationParams(pagination),
+        ...transformSort({
+          direction: sortBy.direction,
+          name: columns[sortBy.index].type,
+        }),
+      });
+    }, 500);
+    return () => clearInterval(finishInput);
   }, [
     pagination.perPage,
     pagination.page,
@@ -78,8 +142,6 @@ const GeneralTable = ({
     sortBy.direction,
     ...filterDep,
   ]);
-
-  const hasFilters = Object.keys(filters).some((filterKey) => filterKey);
 
   let rows = [
     {
